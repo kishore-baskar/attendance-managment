@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="form-container">
+    <h2>Apply for Leave</h2>
+    <form method="POST">
+        <input type="date" name="date" required>
+        <textarea name="reason" placeholder="Reason for leave" required></textarea>
+        <select name="teacher_id" required>
+            <option value="">Select Teacher</option>
+            {% for teacher in teachers %}
+                <option value="{{ teacher.id }}">{{ teacher.username }} ({{ teacher.subject }})</option>
+            {% endfor %}
+        </select>
+        <select name="category" required>
+            <option value="">Select Category</option>
+            <option value="Medical Leave">Medical Leave</option>
+            <option value="Family Emergency Leave">Family Emergency Leave</option>
+            <option value="Educational Leave">Educational Leave</option>
+            <option value="Personal Leave">Personal Leave</option>
+            <option value="Funereal Leave">Funereal Leave</option>
+        </select>
+        <button type="submit">Submit</button>
+    </form>
+    {% if message %}<div class="success">{{ message }}</div>{% endif %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+</div>
+{% endblock %} 

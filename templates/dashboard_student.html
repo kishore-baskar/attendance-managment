@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-cards">
+        <div class="card stat-card">
+            <div class="stat-title">Total Leaves</div>
+            <div class="stat-value">{{ stats.total }}</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-title">Approved</div>
+            <div class="stat-value">{{ stats.approved }}</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-title">Rejected</div>
+            <div class="stat-value">{{ stats.rejected }}</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-title">Pending</div>
+            <div class="stat-value">{{ stats.pending }}</div>
+        </div>
+    </div>
+
+    <!-- Leave Calendar Section -->
+    <div style="margin:2rem 0;">
+        <h4>Leave Calendar</h4>
+        <div id="leaveCalendar"></div>
+        <div id="leaveDetails" style="margin-top:1rem;"></div>
+    </div>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script>
+        var leaveEvents = [
+            {% for leave in leaves %}
+            {
+                id: '{{ leave.id }}',
+                title: '{{ leave.category }} ({{ leave.status }})',
+                start: '{{ leave.date }}',
+                color: '{{ "#27ae60" if leave.status == "Approved" else "#e74c3c" if leave.status == "Rejected" else "#2d5be3" }}',
+                extendedProps: {
+                    date_applied: '{{ leave.date_applied.strftime("%Y-%m-%d %H:%M") if leave.date_applied else "-" }}',
+                    teacher: '{{ leave.teacher.username if leave.teacher else "-" }}',
+                    reason: '{{ leave.reason }}',
+                    category: '{{ leave.category }}',
+                    status: '{{ leave.status }}'
+                }
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('leaveCalendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                height: 400,
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,dayGridWeek'
+                },
+                events: leaveEvents,
+                eventClick: function(info) {
+                    var props = info.event.extendedProps;
+                    var details = '<div class="card stat-card">' +
+                        '<b>Date Applied:</b> ' + props.date_applied + '<br>' +
+                        '<b>Leave Date:</b> ' + info.event.startStr + '<br>' +
+                        '<b>Teacher:</b> ' + props.teacher + '<br>' +
+                        '<b>Reason:</b> ' + props.reason + '<br>' +
+                        '<b>Category:</b> ' + props.category + '<br>' +
+                        '<b>Status:</b> ' + props.status +
+                        '</div>';
+                    document.getElementById('leaveDetails').innerHTML = details;
+                }
+            });
+            calendar.render();
+        });
+    </script>
+
+    <form method="get" id="teacherSelectForm">
+        <label for="teacher_id">Select Teacher:</label>
+        <select name="teacher_id" id="teacher_id" onchange="document.getElementById('teacherSelectForm').submit();">
+            <option value="">All Teachers</option>
+            {% for teacher in teachers %}
+                <option value="{{ teacher.id }}" {% if selected_teacher and teacher.id == selected_teacher.id %}selected{% endif %}>{{ teacher.username }} ({{ teacher.subject }})</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% if selected_teacher %}
+        <div class="card stat-card" style="margin: 1rem 0;">
+            <div class="stat-title">Leaves Requested to {{ selected_teacher.username }}</div>
+            <div class="stat-value">{{ teacher_leave_count }}</div>
+        </div>
+        <div class="dashboard-cards">
+            <div class="card stat-card">
+                <div class="stat-title">Approved by {{ selected_teacher.username }}</div>
+                <div class="stat-value">{{ approved_count }}</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-title">Rejected by {{ selected_teacher.username }}</div>
+                <div class="stat-value">{{ rejected_count }}</div>
+            </div>
+        </div>
+        <div class="dashboard-cards">
+            <div style="flex:1;">
+                <h4>Approval Rate by Category</h4>
+                <canvas id="approvalPieChart" width="400" height="200"></canvas>
+            </div>
+            <div style="flex:1;">
+                <h4>Rejection Rate by Category</h4>
+                <canvas id="rejectionPieChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            var approvalCtx = document.getElementById('approvalPieChart').getContext('2d');
+            var approvalChart = new Chart(approvalCtx, {
+                type: 'pie',
+                data: {
+                    labels: {{ approval_labels|tojson }},
+                    datasets: [{
+                        data: {{ approval_counts|tojson }},
+                        backgroundColor: ['#27ae60', '#2d5be3', '#e67e22', '#e74c3c', '#8e44ad']
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+            var rejectionCtx = document.getElementById('rejectionPieChart').getContext('2d');
+            var rejectionChart = new Chart(rejectionCtx, {
+                type: 'pie',
+                data: {
+                    labels: {{ rejection_labels|tojson }},
+                    datasets: [{
+                        data: {{ rejection_counts|tojson }},
+                        backgroundColor: ['#e74c3c', '#e67e22', '#2d5be3', '#27ae60', '#8e44ad']
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+        </script>
+        {% set teacher_leaves = calendar_leaves %}
+        {% if teacher_leaves|length > 0 %}
+        <div style="margin:2rem 0;">
+            <h4>Leave Calendar for {{ selected_teacher.username }}</h4>
+            <div id="leaveCalendar"></div>
+            <div id="leaveDetails" style="margin-top:1rem;"></div>
+        </div>
+        <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+        <script>
+            var leaveEvents = [
+                {% for leave in teacher_leaves %}
+                {
+                    id: '{{ leave.id }}',
+                    title: 'Requested Leave ({{ leave.status }})',
+                    start: '{{ leave.date }}',
+                    color: '#2d5be3',
+                    extendedProps: {
+                        date_applied: '{{ leave.date_applied.strftime('%Y-%m-%d %H:%M') if leave.date_applied else '-' }}',
+                        teacher: '{{ leave.teacher.username if leave.teacher else '-' }}',
+                        reason: '{{ leave.reason }}',
+                        category: '{{ leave.category }}',
+                        status: '{{ leave.status }}'
+                    }
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ];
+            document.addEventListener('DOMContentLoaded', function() {
+                var calendarEl = document.getElementById('leaveCalendar');
+                var calendar = new FullCalendar.Calendar(calendarEl, {
+                    initialView: 'dayGridMonth',
+                    height: 400,
+                    events: leaveEvents,
+                    eventClick: function(info) {
+                        var props = info.event.extendedProps;
+                        var details = '<div class="card stat-card">' +
+                            '<b>Date Applied:</b> ' + props.date_applied + '<br>' +
+                            '<b>Leave Date:</b> ' + info.event.startStr + '<br>' +
+                            '<b>Teacher:</b> ' + props.teacher + '<br>' +
+                            '<b>Reason:</b> ' + props.reason + '<br>' +
+                            '<b>Category:</b> ' + props.category + '<br>' +
+                            '<b>Status:</b> ' + props.status +
+                            '</div>';
+                        document.getElementById('leaveDetails').innerHTML = details;
+                    }
+                });
+                calendar.render();
+            });
+        </script>
+        {% endif %}
+    {% endif %}
+    <h3>Leave History</h3>
+    <div style="margin-bottom: 1rem;">
+        <a href="{{ url_for('export_leaves') }}" class="export-btn">Export Leave History</a>
+    </div>
+    <table class="leave-table">
+        <thead>
+            <tr><th>Date</th><th>Reason</th><th>Status</th><th>Teacher Comment</th></tr>
+        </thead>
+        <tbody>
+            {% for leave in filtered_leaves %}
+            <tr>
+                <td>{{ leave.date }}</td>
+                <td>{{ leave.reason }}</td>
+                <td>{{ leave.status }}</td>
+                <td>{{ leave.teacher_comment or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+    .export-btn {
+        display: inline-block;
+        padding: 8px 16px;
+        background-color: #2d5be3;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    .export-btn:hover {
+        background-color: #1e4bd1;
+        color: white;
+    }
+</style>
+{% endblock %} 
